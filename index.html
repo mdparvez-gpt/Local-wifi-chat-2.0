@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Chat & Call Hub</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 15px; background: #f0f2f5; }
+        .card { max-width: 400px; margin: 20px auto; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .hidden { display: none !important; }
+        #chat { height: 45vh; overflow-y: auto; background: #fafafa; padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ddd; display: flex; flex-direction: column; }
+        .msg { margin: 6px 0; padding: 8px 14px; border-radius: 18px; max-width: 75%; word-break: break-word; font-size: 0.95em; }
+        .msg-me { background: #0084ff; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .msg-other { background: #e4e6eb; color: #050505; align-self: flex-start; border-bottom-left-radius: 4px; }
+        .msg-sender { font-size: 0.75em; font-weight: bold; margin-bottom: 2px; color: #65676b; }
+        .msg-me .msg-sender { color: #e4e6eb; text-align: right; }
+        .system-msg { color: #65676b; font-size: 0.8em; text-align: center; margin: 8px 0; align-self: center; background: #e9ecef; padding: 4px 12px; border-radius: 12px; }
+        .input-box { display: flex; gap: 8px; }
+        input { width: 100%; padding: 10px; margin: 6px 0; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #0084ff; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 5px; }
+        .room-item, .user-item { padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .user-item { background: #eef5ff; border-color: #b6d4fe; }
+        .req-item { background: #fff3cd; border: 1px solid #ffeeba; padding: 8px; border-radius: 6px; margin: 5px 0; display: flex; justify-content: space-between; align-items: center; }
+        .btn-sm { width: auto; padding: 6px 12px; font-size: 0.85em; margin: 0 2px; }
+        .btn-danger { background: #dc3545; }
+        .btn-success { background: #28a745; }
+        .btn-secondary { background: #6c757d; }
+        .green-dot { height: 10px; width: 10px; background-color: #28a745; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        
+        #video-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; position: relative; }
+        video { width: 100%; height: 200px; background: #222; border-radius: 8px; object-fit: cover; }
+        #local-video { height: 90px; width: 120px; position: absolute; bottom: 10px; right: 10px; border: 2px solid white; z-index: 10; }
+        .call-bar { display: flex; gap: 8px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <div id="screen-home" class="card">
+        <h2>Local Chat Hub</h2>
+        <input id="user-name" placeholder="Enter Your Name" />
+        <div style="display: flex; gap: 8px;">
+            <button type="button" id="btn-show-create">Create Room</button>
+            <button type="button" id="btn-show-direct" class="btn-secondary">Direct Join</button>
+        </div>
+        <button type="button" id="btn-enable-notify" style="background:#28a745; margin-top:10px;">🔔 Enable Notifications</button>
+        
+        <hr style="margin: 15px 0;">
+        <h3>Online Users</h3>
+        <div id="user-list">No users online.</div>
+
+        <hr style="margin: 15px 0;">
+        <h3>Active Rooms</h3>
+        <div id="room-list">No active rooms found.</div>
+    </div>
+
+    <div id="screen-create" class="card hidden">
+        <h3>Create Room</h3>
+        <input id="create-room-id" placeholder="Room ID" />
+        <input id="create-room-pass" type="password" placeholder="Room Password" />
+        <button type="button" id="btn-create-room">Create & Host</button>
+        <button type="button" class="btn-back btn-secondary">Back</button>
+    </div>
+
+    <div id="screen-direct" class="card hidden">
+        <h3>Direct Join by ID & Pass</h3>
+        <input id="direct-room-id" placeholder="Room ID" />
+        <input id="direct-room-pass" type="password" placeholder="Room Password" />
+        <button type="button" id="btn-direct-join">Join Room</button>
+        <button type="button" class="btn-back btn-secondary">Back</button>
+    </div>
+
+    <div id="screen-wait" class="card hidden" style="text-align: center;">
+        <h3>Request Sent!</h3>
+        <p>Waiting for host approval...</p>
+    </div>
+
+    <div id="call-alert" class="card hidden" style="text-align: center; background: #e3f2fd;">
+        <h4 id="call-caller-name">Incoming Call...</h4>
+        <div style="display: flex; gap: 10px;">
+            <button type="button" id="btn-accept-call" class="btn-success">Accept</button>
+            <button type="button" id="btn-reject-call" class="btn-danger">Reject</button>
+        </div>
+    </div>
+
+    <div id="screen-chat" class="card hidden">
+        <h3 id="chat-title" style="margin:0 0 10px 0;"></h3>
+        <div class="call-bar">
+            <button type="button" id="btn-audio-call" style="background:#17a2b8;">📞 Audio Call</button>
+            <button type="button" id="btn-video-call" style="background:#28a745;">📹 Video Call</button>
+            <button type="button" id="btn-end-call" class="btn-danger hidden">End Call</button>
+            <button type="button" id="btn-leave-chat" class="btn-secondary" style="width: auto;">Leave</button>
+        </div>
+        <div id="video-grid" class="hidden">
+            <video id="remote-video" autoplay playsinline></video>
+            <video id="local-video" autoplay playsinline muted></video>
+        </div>
+        <div id="host-panel" class="hidden">
+            <h5 style="margin:5px 0;">Pending Requests:</h5>
+            <div id="request-list"></div>
+        </div>
+        <div id="chat"></div>
+        <div class="input-box">
+            <input id="msg-input" placeholder="Message..." />
+            <button type="button" id="btn-send" style="width:auto;">Send</button>
+        </div>
+    </div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io({ reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 1000 });
+    let myName = localStorage.getItem("chat_username") || "", currentRoom = "", targetUserId = null, isHost = false;
+    let localStream, remoteStream, peerConnection, incomingCallerId = null, callVideoType = false;
+
+    const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+    const screenHome = document.getElementById("screen-home");
+    const screenCreate = document.getElementById("screen-create");
+    const screenDirect = document.getElementById("screen-direct");
+    const screenWait = document.getElementById("screen-wait");
+    const screenChat = document.getElementById("screen-chat");
+    const callAlert = document.getElementById("call-alert");
+    const videoGrid = document.getElementById("video-grid");
+
+    const nameInput = document.getElementById("user-name");
+    if (myName) {
+        nameInput.value = myName;
+        socket.emit("register-user", myName);
+    }
+
+    nameInput.addEventListener("input", (e) => {
+        myName = e.target.value.trim();
+        localStorage.setItem("chat_username", myName);
+        if (myName) socket.emit("register-user", myName);
+    });
+
+    socket.on("connect", () => {
+        if (myName) socket.emit("register-user", myName);
+        const savedRoom = localStorage.getItem("chat_current_room");
+        const savedPass = localStorage.getItem("chat_current_pass");
+        const savedIsHost = localStorage.getItem("chat_is_host");
+        
+        if (savedRoom && savedPass) {
+            currentRoom = savedRoom;
+            if (savedIsHost === "true") {
+                socket.emit("create-room", { roomId: savedRoom, pass: savedPass, hostName: myName });
+            } else {
+                socket.emit("direct-join", { roomId: savedRoom, pass: savedPass, name: myName });
+            }
+        }
+    });
+
+    document.getElementById("btn-enable-notify").addEventListener("click", () => {
+        if ("Notification" in window) {
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    alert("Notifications Enabled!");
+                    document.getElementById("btn-enable-notify").style.display = "none";
+                } else { alert("Permission Denied!"); }
+            });
+        }
+    });
+
+    function sendNotification(title, body) {
+        if ("Notification" in window && Notification.permission === "granted") {
+            if (document.hidden) {
+                new Notification(title, { body: body, icon: 'https://cdn-icons-png.flaticon.com/512/732/732200.png' });
+            }
+        }
+    }
+
+    document.getElementById("btn-show-create").addEventListener("click", () => {
+        if (!checkName()) return;
+        screenHome.classList.add("hidden");
+        screenCreate.classList.remove("hidden");
+    });
+
+    document.getElementById("btn-show-direct").addEventListener("click", () => {
+        if (!checkName()) return;
+        screenHome.classList.add("hidden");
+        screenDirect.classList.remove("hidden");
+    });
+
+    document.querySelectorAll(".btn-back").forEach(btn => {
+        btn.addEventListener("click", () => {
+            screenCreate.classList.add("hidden");
+            screenDirect.classList.add("hidden");
+            screenHome.classList.remove("hidden");
+        });
+    });
+
+    document.getElementById("btn-leave-chat").addEventListener("click", () => {
+        endCall();
+        targetUserId = null;
+        currentRoom = "";
+        localStorage.removeItem("chat_current_room");
+        localStorage.removeItem("chat_current_pass");
+        localStorage.removeItem("chat_is_host");
+        screenChat.classList.add("hidden");
+        screenHome.classList.remove("hidden");
+        document.getElementById("chat").innerHTML = "";
+    });
+
+    document.getElementById("btn-create-room").addEventListener("click", () => {
+        const roomId = document.getElementById("create-room-id").value.trim();
+        const pass = document.getElementById("create-room-pass").value;
+        if (!roomId || !pass) return alert("Enter Room ID and Password!");
+        targetUserId = null;
+        localStorage.setItem("chat_current_room", roomId);
+        localStorage.setItem("chat_current_pass", pass);
+        localStorage.setItem("chat_is_host", "true");
+        socket.emit("create-room", { roomId, pass, hostName: myName });
+    });
+
+    document.getElementById("btn-direct-join").addEventListener("click", () => {
+        const roomId = document.getElementById("direct-room-id").value.trim();
+        const pass = document.getElementById("direct-room-pass").value;
+        if (!roomId || !pass) return alert("Enter Room ID and Password!");
+        targetUserId = null;
+        currentRoom = roomId;
+        localStorage.setItem("chat_current_room", roomId);
+        localStorage.setItem("chat_current_pass", pass);
+        localStorage.setItem("chat_is_host", "false");
+        socket.emit("direct-join", { roomId, pass, name: myName });
+    });
+
+    document.getElementById("btn-send").addEventListener("click", sendMessage);
+    document.getElementById("msg-input").addEventListener("keypress", (e) => {
+        if (e.key === "Enter") sendMessage();
+    });
+
+    function checkName() {
+        myName = document.getElementById("user-name").value.trim();
+        if (!myName) { alert("Enter your name first!"); return false; }
+        localStorage.setItem("chat_username", myName);
+        socket.emit("register-user", myName);
+        return true;
+    }
+
+    function sendMessage() {
+        const input = document.getElementById("msg-input");
+        if (input.value.trim()) {
+            socket.emit("chat-msg", { 
+                roomId: currentRoom, 
+                targetId: targetUserId, 
+                name: myName, 
+                msg: input.value, 
+                senderId: socket.id 
+            });
+            input.value = "";
+        }
+    }
+
+    socket.on("update-user-list", users => {
+        const list = document.getElementById("user-list");
+        list.innerHTML = "";
+        let count = 0;
+        for (let id in users) {
+            if (id !== socket.id) {
+                count++;
+                list.innerHTML += '<div class="user-item"><div><span class="green-dot"></span><b>' + users[id] + '</b></div><div><button type="button" class="btn-sm" onclick="directChatUser(\'' + id + '\', \'' + users[id] + '\')">💬</button><button type="button" class="btn-sm btn-success" onclick="directCallUser(\'' + id + '\', \'' + users[id] + '\', false)">📞</button><button type="button" class="btn-sm btn-success" onclick="directCallUser(\'' + id + '\', \'' + users[id] + '\', true)">📹</button></div></div>';
+            }
+        }
+        if (count === 0) list.innerHTML = "No other users online right now.";
+    });
+
+    window.directChatUser = function(targetId, targetName) {
+        if (!checkName()) return;
+        targetUserId = targetId;
+        currentRoom = "";
+        setupChatRoom("Private Chat with " + targetName);
+    };
+
+    window.directCallUser = function(targetId, targetName, video) {
+        if (!checkName()) return;
+        incomingCallerId = targetId;
+        targetUserId = targetId;
+        currentRoom = "";
+        setupChatRoom("Call with " + targetName);
+        startCall(video, targetId);
+    };
+
+    window.requestJoin = function(roomId) {
+        if (!checkName()) return;
+        currentRoom = roomId;
+        targetUserId = null;
+        socket.emit("request-join", { roomId, name: myName });
+        screenHome.classList.add("hidden");
+        screenWait.classList.remove("hidden");
+    };
+
+    window.respondReq = function(requesterId, accept) {
+        socket.emit("host-response", { requesterId, accept, roomId: currentRoom });
+        document.getElementById("req-" + requesterId)?.remove();
+    };
+
+    socket.on("update-room-list", rooms => {
+        const list = document.getElementById("room-list");
+        if (Object.keys(rooms).length === 0) { list.innerHTML = "No active rooms found."; return; }
+        list.innerHTML = "";
+        for (let id in rooms) { 
+            list.innerHTML += '<div class="room-item"><div><b>' + id + '</b></div><button type="button" class="btn-sm" onclick="requestJoin(\'' + id + '\')">Request Join</button></div>';
+        }
+    });
+
+    socket.on("room-created", ({ roomId }) => {
+        currentRoom = roomId; isHost = true;
+        setupChatRoom("Room: " + roomId + " (Host)");
+        document.getElementById("host-panel").classList.remove("hidden");
+    });
+
+    socket.on("new-join-request", ({ requesterId, requesterName }) => {
+        if (!isHost) return;
+        sendNotification("New Join Request", requesterName + " wants to join your room!");
+        const list = document.getElementById("request-list");
+        const div = document.createElement("div");
+        div.id = "req-" + requesterId; div.className = "req-item";
+        div.innerHTML = '<span><b>' + requesterName + '</b></span><div><button type="button" class="btn-sm btn-success" onclick="respondReq(\'' + requesterId + '\', true)">Accept</button><button type="button" class="btn-sm btn-danger" onclick="respondReq(\'' + requesterId + '\', false)">Reject</button></div>';
+        list.appendChild(div);
+    });
+
+    socket.on("join-approved", () => {
+        screenWait.classList.add("hidden");
+        screenDirect.classList.add("hidden");
+        setupChatRoom("Room: " + currentRoom);
+    });
+
+    socket.on("join-rejected", (reason) => {
+        alert(reason || "Rejected by host or wrong password!");
+        localStorage.removeItem("chat_current_room");
+        localStorage.removeItem("chat_current_pass");
+        localStorage.removeItem("chat_is_host");
+        screenWait.classList.add("hidden");
+        screenHome.classList.remove("hidden");
+    });
+
+    function setupChatRoom(title) {
+        screenHome.classList.add("hidden");
+        screenCreate.classList.add("hidden");
+        screenDirect.classList.add("hidden");
+        screenChat.classList.remove("hidden");
+        document.getElementById("chat-title").innerText = title;
+    }
+
+    socket.on("chat-msg", data => {
+        if (data.isPrivate && data.targetId) {
+            targetUserId = data.targetId;
+            setupChatRoom("Private Chat with " + (data.senderName || data.name));
+        }
+
+        const chatBox = document.getElementById("chat");
+        const div = document.createElement("div");
+        if (data.isSystem) {
+            div.className = "system-msg";
+            div.innerText = data.msg;
+        } else {
+            const isMe = data.senderId === socket.id;
+            div.className = "msg " + (isMe ? "msg-me" : "msg-other");
+            const senderDiv = document.createElement("div");
+            senderDiv.className = "msg-sender";
+            senderDiv.innerText = isMe ? "You" : data.name;
+            const textDiv = document.createElement("div");
+            textDiv.innerText = data.msg;
+            div.appendChild(senderDiv);
+            div.appendChild(textDiv);
+
+            if (!isMe) sendNotification("New Message from " + data.name, data.msg);
+        }
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
+    /* --- CALL LOGIC --- */
+    document.getElementById("btn-audio-call").addEventListener("click", () => startCall(false, targetUserId));
+    document.getElementById("btn-video-call").addEventListener("click", () => startCall(true, targetUserId));
+    document.getElementById("btn-end-call").addEventListener("click", endCall);
+
+    async function startCall(video, directTargetId = null) {
+        callVideoType = video;
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: video });
+            document.getElementById("local-video").srcObject = localStream;
+            videoGrid.classList.remove("hidden");
+            document.getElementById("btn-end-call").classList.remove("hidden");
+            
+            if (directTargetId) {
+                socket.emit("direct-call-user", { targetId: directTargetId, name: myName, video: video, callerId: socket.id });
+            } else {
+                socket.emit("call-user", { roomId: currentRoom, name: myName, video: video, callerId: socket.id });
+            }
+        } catch (err) {
+            alert("Camera/Microphone permission denied!");
+        }
+    }
+
+    socket.on("incoming-call", data => {
+        if (data.callerId === socket.id) return;
+        incomingCallerId = data.callerId;
+        callVideoType = data.video;
+        document.getElementById("call-caller-name").innerText = data.name + " is Calling...";
+        callAlert.classList.remove("hidden");
+        sendNotification("Incoming Call 📞", data.name + " is calling you!");
+    });
+
+    document.getElementById("btn-accept-call").addEventListener("click", async () => {
+        callAlert.classList.add("hidden");
+        targetUserId = incomingCallerId;
+        setupChatRoom("Active Call");
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callVideoType });
+            document.getElementById("local-video").srcObject = localStream;
+            videoGrid.classList.remove("hidden");
+            document.getElementById("btn-end-call").classList.remove("hidden");
+
+            createPeerConnection(incomingCallerId);
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            socket.emit("send-offer", { targetId: incomingCallerId, offer });
+        } catch (err) {
+            alert("Camera/Mic access required!");
+        }
+    });
+
+    document.getElementById("btn-reject-call").addEventListener("click", () => {
+        callAlert.classList.add("hidden");
+    });
+
+    socket.on("receive-offer", async ({ callerId, offer }) => {
+        createPeerConnection(callerId);
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+        
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        socket.emit("send-answer", { targetId: callerId, answer });
+    });
+
+    socket.on("receive-answer", async ({ answer }) => {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    });
+
+    socket.on("receive-ice", async ({ candidate }) => {
+        if (peerConnection && candidate) {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+    });
+
+    function createPeerConnection(targetId) {
+        peerConnection = new RTCPeerConnection(rtcConfig);
+        remoteStream = new MediaStream();
+        document.getElementById("remote-video").srcObject = remoteStream;
+
+        peerConnection.onicecandidate = e => {
+            if (e.candidate) socket.emit("send-ice", { targetId, candidate: e.candidate });
+        };
+
+        peerConnection.ontrack = e => {
+            e.streams[0].getTracks().forEach(track => remoteStream.addTrack(track));
+        };
+    }
+
+    function endCall() {
+        if (localStream) localStream.getTracks().forEach(track => track.stop());
+        if (peerConnection) peerConnection.close();
+        videoGrid.classList.add("hidden");
+        document.getElementById("btn-end-call").classList.add("hidden");
+    }
+</script>
+</body>
+</html>
