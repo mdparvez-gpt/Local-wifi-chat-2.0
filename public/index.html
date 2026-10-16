@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fast Local Chat</title>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 90%; max-width: 380px; text-align: center; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        button { width: 100%; padding: 12px; background: #0084ff; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 8px; }
+        button:active { background: #006bce; }
+        .hidden { display: none; }
+        #messages { height: 250px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 8px; text-align: left; margin-bottom: 10px; background: #fafafa; }
+    </style>
+</head>
+<body>
+
+    <div id="auth-card" class="card">
+        <h2>Create or Join Room</h2>
+        <input type="text" id="roomId" placeholder="Enter Room Code (e.g. 2444)">
+        <input type="password" id="roomPass" placeholder="Password (Optional)">
+        <button id="createBtn" onclick="createRoom()">Create & Host</button>
+        <button id="joinBtn" onclick="joinRoom()" style="background:#42b72a;">Join Room</button>
+    </div>
+
+    <div id="chat-card" class="card hidden">
+        <h3 id="roomTitle">Room</h3>
+        <div id="messages"></div>
+        <input type="text" id="msgInput" placeholder="Type a message...">
+        <button onclick="sendMessage()">Send</button>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let currentRoom = '';
+
+        function createRoom() {
+            const roomId = document.getElementById('roomId').value.trim();
+            const password = document.getElementById('roomPass').value;
+            if (!roomId) return alert('Please enter Room Code!');
+            socket.emit('create-room', { roomId, password });
+        }
+
+        function joinRoom() {
+            const roomId = document.getElementById('roomId').value.trim();
+            const password = document.getElementById('roomPass').value;
+            if (!roomId) return alert('Please enter Room Code!');
+            socket.emit('join-room', { roomId, password });
+        }
+
+        socket.on('room-created', ({ roomId }) => {
+            enterChat(roomId);
+        });
+
+        socket.on('room-joined', ({ roomId }) => {
+            enterChat(roomId);
+        });
+
+        socket.on('error-msg', (msg) => {
+            alert(msg);
+        });
+
+        function enterChat(roomId) {
+            currentRoom = roomId;
+            document.getElementById('auth-card').classList.add('hidden');
+            document.getElementById('chat-card').classList.remove('hidden');
+            document.getElementById('roomTitle').innerText = 'Room: ' + roomId;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('msgInput');
+            const message = input.value.trim();
+            if (message) {
+                socket.emit('send-message', { roomId: currentRoom, message, sender: 'User' });
+                input.value = '';
+            }
+        }
+
+        socket.on('receive-message', ({ message, sender, time }) => {
+            const msgBox = document.getElementById('messages');
+            msgBox.innerHTML += `<div><strong>${sender}:</strong> ${message} <small style="color:gray;">(${time})</small></div>`;
+            msgBox.scrollTop = msgBox.scrollHeight;
+        });
+    </script>
+</body>
+</html>
+
